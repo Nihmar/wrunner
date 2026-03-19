@@ -22,7 +22,7 @@ type
     FLog: TStrings;
     FOnLoaded: TNotifyEvent;
     procedure LoadFromShellFolder;
-    procedure ExtractIconToImageList(const AParsingName: string; AEntity: TDesktopEntity);
+    procedure EnumFolder(AFolder, ADesktopFolder: IShellFolder; AParentPIDL: PItemIDList; AList: TListDesktopEntities);
     procedure HandleListViewData(Sender: TObject; Item: TListItem);
     procedure SortApps(AList: TListDesktopEntities);
     procedure DoLoadComplete;
@@ -141,14 +141,6 @@ end;
 procedure TAppLoader.LoadFromShellFolder;
 var
   LShellFolder: IShellFolder;
-  LEnumIDList: IEnumIDList;
-  LPID: PItemIDList;
-  LFetched: ULONG;
-  LStrRet: TStrRet;
-  LDisplayName: string;
-  LParsingName: string;
-  LEntity: TDesktopEntity;
-  LFlags: DWORD;
   LDesktopFolder: IShellFolder;
   LAppsPIDL: PItemIDList;
   LAttr: ULONG;
@@ -170,70 +162,9 @@ begin
     CoTaskMemFree(LAppsPIDL);
   end;
 
-  LFlags := SHCONTF_NONFOLDERS or SHCONTF_INCLUDEHIDDEN or SHCONTF_FOLDERS;
-  OleCheck(LShellFolder.EnumObjects(0, LFlags, LEnumIDList));
-
   LTempList := TListDesktopEntities.Create;
   try
-    while LEnumIDList.Next(1, LPID, LFetched) = S_OK do
-    begin
-      try
-        if LShellFolder.GetDisplayNameOf(LPID, SHGDN_NORMAL, LStrRet) <> S_OK then
-          Continue;
-
-        case LStrRet.uType of
-          STRRET_WSTR:
-            begin
-              LDisplayName := string(LStrRet.pOleStr);
-              CoTaskMemFree(LStrRet.pOleStr);
-            end;
-          STRRET_CSTR:
-            LDisplayName := string(LStrRet.cStr);
-          STRRET_OFFSET:
-            LDisplayName := PWideChar(PByte(LPID) + LStrRet.uOffset);
-        else
-          LDisplayName := '';
-        end;
-
-        if LShellFolder.GetDisplayNameOf(LPID, SHGDN_FORPARSING, LStrRet) <> S_OK then
-          Continue;
-
-        case LStrRet.uType of
-          STRRET_WSTR:
-            begin
-              LParsingName := string(LStrRet.pOleStr);
-              CoTaskMemFree(LStrRet.pOleStr);
-            end;
-          STRRET_CSTR:
-            LParsingName := string(LStrRet.cStr);
-          STRRET_OFFSET:
-            LParsingName := PWideChar(PByte(LPID) + LStrRet.uOffset);
-        else
-          LParsingName := '';
-        end;
-
-        if (LDisplayName = '') or (LParsingName = '') then
-          Continue;
-
-        LEntity := TDesktopEntity.Create;
-        try
-          LEntity.DisplayName := LDisplayName;
-          LEntity.ParsingName := LParsingName;
-          LEntity.LaunchCommand := LParsingName;
-          LEntity.ImageIndex := -1;
-          ExtractIconToImageList(LParsingName, LEntity);
-          LTempList.Add(LEntity);
-        except
-          on E: Exception do
-          begin
-            LEntity.Free;
-          end;
-        end;
-      finally
-        CoTaskMemFree(LPID);
-      end;
-    end;
-
+    EnumFolder(LShellFolder, LDesktopFolder, LAppsPIDL, LTempList);
     SortApps(LTempList);
 
     TThread.Synchronize(nil,
@@ -253,26 +184,107 @@ begin
   end;
 end;
 
-procedure TAppLoader.ExtractIconToImageList(const AParsingName: string; AEntity: TDesktopEntity);
+procedure TAppLoader.EnumFolder(AFolder, ADesktopFolder: IShellFolder; AParentPIDL: PItemIDList; AList: TListDesktopEntities);
 var
-  LSHFileInfo: TSHFileInfo;
+  LEnumIDList: IEnumIDList;
+  LPID: PItemIDList;
+  LFetched: ULONG;
+  LFlags: DWORD;
+  LAttr: ULONG;
+  LSubFolder: IShellFolder;
+  LStrRet: TStrRet;
+  LDisplayName: string;
+  LParsingName: string;
+  LEntity: TDesktopEntity;
   LIcon: TIcon;
-  LFlags: UINT;
+  LSHFileInfo: TSHFileInfo;
+  LAbsPIDL: PItemIDList;
 begin
-  LFlags := SHGFI_SYSICONINDEX or SHGFI_LARGEICON or SHGFI_ICON;
-  FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
+  LFlags := SHCONTF_FOLDERS or SHCONTF_NONFOLDERS;
+  if Failed(AFolder.EnumObjects(0, LFlags, LEnumIDList)) then
+    Exit;
 
-  if SHGetFileInfo(PChar(AParsingName), 0, LSHFileInfo, SizeOf(LSHFileInfo), LFlags) <> 0 then
+  while LEnumIDList.Next(1, LPID, LFetched) = S_OK do
   begin
-    if LSHFileInfo.hIcon <> 0 then
-    begin
-      LIcon := TIcon.Create;
-      try
-        LIcon.Handle := LSHFileInfo.hIcon;
-        AEntity.ImageIndex := FImageList.AddIcon(LIcon);
-      finally
-        LIcon.Free;
+    LAbsPIDL := nil;
+    try
+      LAttr := SFGAO_FOLDER or SFGAO_STREAM;
+      AFolder.GetAttributesOf(1, LPID, LAttr);
+
+      if (LAttr and SFGAO_FOLDER <> 0) and (LAttr and SFGAO_STREAM = 0) then
+      begin
+        if Succeeded(AFolder.BindToObject(LPID, nil, IShellFolder, Pointer(LSubFolder))) then
+        begin
+          LAbsPIDL := ILCombine(AParentPIDL, LPID);
+          EnumFolder(LSubFolder, ADesktopFolder, LAbsPIDL, AList);
+        end;
+        Continue;
       end;
+
+      LStrRet.uType := STRRET_WSTR;
+      LStrRet.pOleStr := nil;
+      if AFolder.GetDisplayNameOf(LPID, SHGDN_NORMAL, LStrRet) <> S_OK then
+        Continue;
+
+      LDisplayName := '';
+      if LStrRet.uType = STRRET_WSTR then
+      begin
+        if LStrRet.pOleStr <> nil then
+        begin
+          LDisplayName := LStrRet.pOleStr;
+          CoTaskMemFree(LStrRet.pOleStr);
+        end;
+      end;
+
+      if LDisplayName = '' then
+        Continue;
+
+      LStrRet.uType := STRRET_WSTR;
+      LStrRet.pOleStr := nil;
+      AFolder.GetDisplayNameOf(LPID, SHGDN_FORPARSING, LStrRet);
+      LParsingName := '';
+      if LStrRet.uType = STRRET_WSTR then
+      begin
+        if LStrRet.pOleStr <> nil then
+        begin
+          LParsingName := LStrRet.pOleStr;
+          CoTaskMemFree(LStrRet.pOleStr);
+        end;
+      end;
+
+      LEntity := TDesktopEntity.Create;
+      try
+        LEntity.DisplayName := LDisplayName;
+        LEntity.ParsingName := LParsingName;
+        LEntity.LaunchCommand := LParsingName;
+        LEntity.ImageIndex := -1;
+
+        LAbsPIDL := ILCombine(AParentPIDL, LPID);
+        FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
+        if SHGetFileInfo(PChar(LAbsPIDL), 0, LSHFileInfo, SizeOf(LSHFileInfo),
+          SHGFI_PIDL or SHGFI_SYSICONINDEX or SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
+        begin
+          if LSHFileInfo.hIcon <> 0 then
+          begin
+            LIcon := TIcon.Create;
+            try
+              LIcon.Handle := LSHFileInfo.hIcon;
+              LEntity.ImageIndex := FImageList.AddIcon(LIcon);
+            finally
+              LIcon.Free;
+            end;
+          end;
+        end;
+
+        AList.Add(LEntity);
+      except
+        on E: Exception do
+          LEntity.Free;
+      end;
+    finally
+      if LAbsPIDL <> nil then
+        CoTaskMemFree(LAbsPIDL);
+      CoTaskMemFree(LPID);
     end;
   end;
 end;
