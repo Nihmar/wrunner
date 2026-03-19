@@ -31,20 +31,6 @@ object WRunnerForm: TWRunnerForm
     TabOrder = 0
     TextHint = 'Search apps...'
     OnChange = EInputSearchChange
-  end
-  object LVSearchResults: TListView
-    AlignWithMargins = True
-    Left = 6
-    Top = 35
-    Width = 628
-    Height = 439
-    Margins.Left = 6
-    Margins.Right = 6
-    Margins.Bottom = 6
-    Align = alClient
-    Columns = <>
-    TabOrder = 1
-    OnDblClick = LVSearchResultsDblClick
-    OnKeyPress = LVSearchResultsKeyPress
+    OnKeyDown = EInputSearchKeyDown
   end
 end

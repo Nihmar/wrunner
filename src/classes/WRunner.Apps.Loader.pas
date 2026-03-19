@@ -5,15 +5,32 @@ interface
 uses
   System.SysUtils, System.Classes, System.Generics.Collections,
   System.Generics.Defaults,
-  Winapi.Windows, Winapi.ShlObj, Winapi.ActiveX, Winapi.ShellAPI,
+  Winapi.Windows, Winapi.ShlObj, Winapi.ActiveX, Winapi.ShellAPI, Winapi.Messages,
   Winapi.KnownFolders,
   Vcl.Controls, Vcl.ComCtrls, Vcl.Graphics, Vcl.ImgList, Vcl.Themes, Vcl.Styles,
   WRunner.Apps.Entities;
 
+const
+  LVS_OWNERDRAWFIXED = $0004;
+  ODT_LISTVIEW = 102;
+
 type
+  TAppLoader = class;
+
+  TListViewHook = class(TWinControl)
+  private
+    FLoader: TAppLoader;
+    procedure WMMeasureItem(var Message: TWMMeasureItem); message WM_MEASUREITEM;
+  protected
+    procedure CreateParams(var Params: TCreateParams); override;
+  public
+    constructor Create(AOwner: TComponent; ALoader: TAppLoader); reintroduce;
+  end;
+
   TAppLoader = class
   private
     FListView: TListView;
+    FListViewHook: TListViewHook;
     FImageList: TImageList;
     FAllApps: TListDesktopEntities;
     FFilteredApps: TListDesktopEntities;
@@ -54,6 +71,27 @@ implementation
 uses
   System.Win.ComObj;
 
+{ TListViewHook }
+
+constructor TListViewHook.Create(AOwner: TComponent; ALoader: TAppLoader);
+begin
+  inherited Create(AOwner);
+  FLoader := ALoader;
+end;
+
+procedure TListViewHook.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  Params.Style := Params.Style or LVS_OWNERDRAWFIXED;
+end;
+
+procedure TListViewHook.WMMeasureItem(var Message: TWMMeasureItem);
+begin
+  inherited;
+  if (Message.MeasureItemStruct^.CtlType = ODT_LISTVIEW) and Assigned(FLoader) then
+    Message.MeasureItemStruct^.itemHeight := FLoader.RowHeight;
+end;
+
 { TAppLoader }
 
 constructor TAppLoader.Create(AListView: TListView; ALog: TStrings = nil);
@@ -63,10 +101,10 @@ begin
   FLog := ALog;
   FLoaded := False;
   FLoading := False;
-  FRowHeight := 40;
+  FRowHeight := 300;
   FFontName := 'Segoe UI';
   FFontSize := 10;
-  FIconSpacing := 8;
+  FIconSpacing := 50;
 
   FImageList := TImageList.Create(nil);
   FImageList.ColorDepth := cd32Bit;
@@ -75,6 +113,9 @@ begin
   FAllApps := TListDesktopEntities.Create;
   FFilteredApps := TListDesktopEntities.Create;
   FFilteredApps.OwnsObjects := False;
+
+  FListViewHook := TListViewHook.Create(FListView, Self);
+  FListViewHook.Parent := FListView.Parent;
 
   FListView.LargeImages := FImageList;
   FListView.SmallImages := FImageList;
@@ -85,6 +126,7 @@ begin
   FListView.RowSelect := True;
   FListView.HideSelection := False;
   FListView.ShowColumnHeaders := False;
+  FListView.TabStop := False;
 
   if FListView.Columns.Count = 0 then
   begin
@@ -311,10 +353,10 @@ begin
 
   with Sender.Canvas do
   begin
-    if cdsSelected in State then
+    if Item.Index = TListView(Sender).ItemIndex then
     begin
-      Brush.Color := StyleServices.GetStyleColor(scButtonFocused);
-      Font.Color := StyleServices.GetStyleFontColor(sfListItemTextSelected);
+      Brush.Color := StyleServices.GetStyleColor(scButtonPressed);
+      Font.Color := StyleServices.GetStyleFontColor(sfButtonTextPressed);
     end
     else
     begin
