@@ -13,6 +13,9 @@ uses
 {$R *.res}
 
 begin
+  {$IFDEF DEBUG}
+  ReportMemoryLeaksOnShutdown := True;
+  {$ENDIF}
   Application.Initialize;
   Application.ShowMainForm := False;
   Application.MainFormOnTaskbar := False;

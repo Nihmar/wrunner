@@ -13,6 +13,9 @@ object WRunnerForm: TWRunnerForm
   Font.Style = []
   Position = poScreenCenter
   RoundedCorners = rcOn
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  OnShow = FormShow
   TextHeight = 15
   object EInputSearch: TEdit
     AlignWithMargins = True
@@ -27,9 +30,7 @@ object WRunnerForm: TWRunnerForm
     CanUndoSelText = True
     TabOrder = 0
     TextHint = 'Search apps...'
-    ExplicitLeft = 3
-    ExplicitTop = 3
-    ExplicitWidth = 634
+    OnChange = EInputSearchChange
   end
   object LVSearchResults: TListView
     AlignWithMargins = True
@@ -43,8 +44,7 @@ object WRunnerForm: TWRunnerForm
     Align = alClient
     Columns = <>
     TabOrder = 1
-    ExplicitLeft = 11
-    ExplicitTop = 41
-    ExplicitHeight = 433
+    OnDblClick = LVSearchResultsDblClick
+    OnKeyPress = LVSearchResultsKeyPress
   end
 end

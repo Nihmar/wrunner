@@ -5,7 +5,8 @@ interface
 uses
   System.SysUtils,
   System.Classes,
-  System.Generics.Collections;
+  System.Generics.Collections,
+  System.Generics.Defaults;
 
 type
   TDesktopEntity = class
@@ -25,10 +26,9 @@ type
     property ImageIndex: Integer read FImageIndex write SetImageIndex;
   end;
 
-  TListDesktopEntities = class(TObjectDictionary<String, TDesktopEntity>)
+  TListDesktopEntities = class(TObjectList<TDesktopEntity>)
   public
     constructor Create; overload;
-    function AddDesktopEntity(AParsingName: string): TDesktopEntity;
   end;
 
 implementation
@@ -57,26 +57,9 @@ end;
 
 { TListDesktopEntities }
 
-function TListDesktopEntities.AddDesktopEntity(AParsingName: string):
-    TDesktopEntity;
-var
-  LApp: TDesktopEntity;
-begin
-  LApp := nil;
-  if TryGetValue(AParsingName, LApp) then
-    Result := LApp
-  else
-    begin
-      Result := TDesktopEntity.Create;
-      Result.ParsingName := AParsingName;
-      Add(AParsingName, Result);
-    end;
-end;
-
 constructor TListDesktopEntities.Create;
 begin
-  inherited Create([doOwnsValues]);
-  //
+  inherited Create(True);
 end;
 
 end.

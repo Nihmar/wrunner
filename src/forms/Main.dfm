@@ -18,7 +18,7 @@ object MainForm: TMainForm
     Animate = True
     PopupMenu = PMMain
     Visible = True
-    OnClick = TIMainClick
+    OnDblClick = TIMainDblClick
     Left = 304
     Top = 224
   end

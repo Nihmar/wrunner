@@ -25,7 +25,7 @@ type
     procedure Exit1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure Open1Click(Sender: TObject);
-    procedure TIMainClick(Sender: TObject);
+    procedure TIMainDblClick(Sender: TObject);
   private
     FRunner: TWRunnerForm;
     procedure OpenRunner;
@@ -114,7 +114,7 @@ begin
   FRunner := Value;
 end;
 
-procedure TMainForm.TIMainClick(Sender: TObject);
+procedure TMainForm.TIMainDblClick(Sender: TObject);
 begin
   OpenRunner;
 end;
