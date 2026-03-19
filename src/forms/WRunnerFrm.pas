@@ -7,6 +7,9 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls,
   WRunner.Apps.Loader;
 
+const
+  ODT_LISTVIEW = 102;
+
 type
   TWRunnerForm = class(TForm)
     EInputSearch: TEdit;
@@ -21,6 +24,7 @@ type
     FLoader: TAppLoader;
     FLog: TStringList;
     procedure HandleLoaderLoaded(Sender: TObject);
+    procedure WMMeasureItem(var Message: TWMMeasureItem); message WM_MEASUREITEM;
   public
   end;
 
@@ -70,6 +74,18 @@ begin
   begin
     Key := #0;
     FLoader.LaunchApp(LVSearchResults.ItemIndex);
+  end;
+end;
+
+procedure TWRunnerForm.WMMeasureItem(var Message: TWMMeasureItem);
+begin
+  inherited;
+  if Message.MeasureItemStruct^.CtlType = ODT_LISTVIEW then
+  begin
+    if Assigned(FLoader) then
+      Message.MeasureItemStruct^.itemHeight := FLoader.RowHeight
+    else
+      Message.MeasureItemStruct^.itemHeight := 40;
   end;
 end;
 

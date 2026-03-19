@@ -56,6 +56,7 @@ procedure TMainForm.FormCreate(Sender: TObject);
 begin
   ApplyWindowsTheme;
   FRunner := TWRunnerForm.Create(Self);
+  OpenRunner;
 end;
 
 function TMainForm.IsWindowsDarkMode: Boolean;

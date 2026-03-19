@@ -7,7 +7,7 @@ uses
   System.Generics.Defaults,
   Winapi.Windows, Winapi.ShlObj, Winapi.ActiveX, Winapi.ShellAPI,
   Winapi.KnownFolders,
-  Vcl.Controls, Vcl.ComCtrls, Vcl.Graphics, Vcl.ImgList,
+  Vcl.Controls, Vcl.ComCtrls, Vcl.Graphics, Vcl.ImgList, Vcl.Themes, Vcl.Styles,
   WRunner.Apps.Entities;
 
 type
@@ -21,9 +21,15 @@ type
     FLoading: Boolean;
     FLog: TStrings;
     FOnLoaded: TNotifyEvent;
+    FRowHeight: Integer;
+    FFontName: string;
+    FFontSize: Integer;
+    FIconSpacing: Integer;
     procedure LoadFromShellFolder;
     procedure EnumFolder(AFolder, ADesktopFolder: IShellFolder; AParentPIDL: PItemIDList; AList: TListDesktopEntities);
+    procedure LoadIconsAsync;
     procedure HandleListViewData(Sender: TObject; Item: TListItem);
+    procedure HandleCustomDrawItem(Sender: TCustomListView; Item: TListItem; State: TCustomDrawState; var DefaultDraw: Boolean);
     procedure SortApps(AList: TListDesktopEntities);
     procedure DoLoadComplete;
   public
@@ -37,6 +43,10 @@ type
     property Loaded: Boolean read FLoaded;
     property Loading: Boolean read FLoading;
     property OnLoaded: TNotifyEvent read FOnLoaded write FOnLoaded;
+    property RowHeight: Integer read FRowHeight write FRowHeight;
+    property FontName: string read FFontName write FFontName;
+    property FontSize: Integer read FFontSize write FFontSize;
+    property IconSpacing: Integer read FIconSpacing write FIconSpacing;
   end;
 
 implementation
@@ -53,6 +63,10 @@ begin
   FLog := ALog;
   FLoaded := False;
   FLoading := False;
+  FRowHeight := 40;
+  FFontName := 'Segoe UI';
+  FFontSize := 10;
+  FIconSpacing := 8;
 
   FImageList := TImageList.Create(nil);
   FImageList.ColorDepth := cd32Bit;
@@ -65,10 +79,12 @@ begin
   FListView.LargeImages := FImageList;
   FListView.SmallImages := FImageList;
   FListView.OwnerData := True;
+  FListView.OwnerDraw := True;
   FListView.ViewStyle := vsReport;
   FListView.ReadOnly := True;
   FListView.RowSelect := True;
   FListView.HideSelection := False;
+  FListView.ShowColumnHeaders := False;
 
   if FListView.Columns.Count = 0 then
   begin
@@ -80,6 +96,7 @@ begin
   end;
 
   FListView.OnData := HandleListViewData;
+  FListView.OnCustomDrawItem := HandleCustomDrawItem;
 end;
 
 destructor TAppLoader.Destroy;
@@ -158,29 +175,31 @@ begin
   OleCheck(SHGetDesktopFolder(LDesktopFolder));
   OleCheck(LDesktopFolder.BindToObject(LAppsPIDL, nil, IShellFolder, Pointer(LShellFolder)));
 
-  LTempList := TListDesktopEntities.Create;
-  try
-    EnumFolder(LShellFolder, LDesktopFolder, LAppsPIDL, LTempList);
-    SortApps(LTempList);
+    LTempList := TListDesktopEntities.Create;
+    try
+      EnumFolder(LShellFolder, LDesktopFolder, LAppsPIDL, LTempList);
+      SortApps(LTempList);
 
-    TThread.Synchronize(nil,
-      procedure
-      begin
-        FAllApps.Clear;
-        FAllApps.AddRange(LTempList);
-        FFilteredApps.Clear;
-        FFilteredApps.AddRange(FAllApps);
-        FListView.Items.Count := FFilteredApps.Count;
-        FListView.Invalidate;
-      end
-    );
-  finally
-    LTempList.OwnsObjects := False;
-    LTempList.Free;
-    if LAppsPIDL <> nil then
-      CoTaskMemFree(LAppsPIDL);
+      TThread.Synchronize(nil,
+        procedure
+        begin
+          FAllApps.Clear;
+          FAllApps.AddRange(LTempList);
+          FFilteredApps.Clear;
+          FFilteredApps.AddRange(FAllApps);
+          FListView.Items.Count := FFilteredApps.Count;
+          FListView.Invalidate;
+        end
+      );
+    finally
+      LTempList.OwnsObjects := False;
+      LTempList.Free;
+      if LAppsPIDL <> nil then
+        CoTaskMemFree(LAppsPIDL);
+    end;
+
+    LoadIconsAsync;
   end;
-end;
 
 procedure TAppLoader.EnumFolder(AFolder, ADesktopFolder: IShellFolder; AParentPIDL: PItemIDList; AList: TListDesktopEntities);
 var
@@ -195,8 +214,6 @@ var
   LParsingName: string;
   LEntity: TDesktopEntity;
   LAbsPIDL: PItemIDList;
-  LSHFileInfo: TSHFileInfo;
-  LIcon: TIcon;
 begin
   LFlags := SHCONTF_FOLDERS or SHCONTF_NONFOLDERS;
   if Failed(AFolder.EnumObjects(0, LFlags, LEnumIDList)) then
@@ -250,43 +267,8 @@ begin
         LEntity.ParsingName := LParsingName;
         LEntity.LaunchCommand := LParsingName;
         LEntity.ImageIndex := -1;
-
         LAbsPIDL := ILCombine(AParentPIDL, LPID);
-        FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
-        if SHGetFileInfo(PChar(LAbsPIDL), 0, LSHFileInfo, SizeOf(LSHFileInfo),
-          SHGFI_PIDL or SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
-        begin
-          if LSHFileInfo.hIcon <> 0 then
-          begin
-            LIcon := TIcon.Create;
-            try
-              LIcon.Handle := LSHFileInfo.hIcon;
-              LEntity.ImageIndex := FImageList.AddIcon(LIcon);
-            finally
-              LIcon.Free;
-            end;
-          end;
-        end;
-
-        if LEntity.ImageIndex = -1 then
-        begin
-          FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
-          if SHGetFileInfo(PChar(LParsingName), 0, LSHFileInfo, SizeOf(LSHFileInfo),
-            SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
-          begin
-            if LSHFileInfo.hIcon <> 0 then
-            begin
-              LIcon := TIcon.Create;
-              try
-                LIcon.Handle := LSHFileInfo.hIcon;
-                LEntity.ImageIndex := FImageList.AddIcon(LIcon);
-              finally
-                LIcon.Free;
-              end;
-            end;
-          end;
-        end;
-
+        LEntity.SetPIDL(LAbsPIDL);
         AList.Add(LEntity);
       except
         on E: Exception do
@@ -310,6 +292,124 @@ begin
     Item.Caption := LEntity.DisplayName;
     Item.ImageIndex := LEntity.ImageIndex;
   end;
+end;
+
+procedure TAppLoader.HandleCustomDrawItem(Sender: TCustomListView; Item: TListItem; State: TCustomDrawState; var DefaultDraw: Boolean);
+var
+  LEntity: TDesktopEntity;
+  LRect: TRect;
+  LIconRect: TRect;
+  LTextRect: TRect;
+  LIconHeight: Integer;
+begin
+  DefaultDraw := False;
+  if (Item.Index < 0) or (Item.Index >= FFilteredApps.Count) then
+    Exit;
+
+  LEntity := FFilteredApps[Item.Index];
+  LRect := Item.DisplayRect(drBounds);
+
+  with Sender.Canvas do
+  begin
+    if cdsSelected in State then
+    begin
+      Brush.Color := StyleServices.GetStyleColor(scButtonFocused);
+      Font.Color := StyleServices.GetStyleFontColor(sfListItemTextSelected);
+    end
+    else
+    begin
+      Brush.Color := StyleServices.GetStyleColor(scListView);
+      Font.Color := StyleServices.GetStyleFontColor(sfListItemTextNormal);
+    end;
+
+    FillRect(LRect);
+
+    Font.Name := FFontName;
+    Font.Size := FFontSize;
+    Font.Style := [];
+
+    if LEntity.ImageIndex >= 0 then
+    begin
+      LIconHeight := FImageList.Height;
+      LIconRect := Rect(
+        LRect.Left + 4,
+        LRect.Top + (LRect.Height - LIconHeight) div 2,
+        LRect.Left + 4 + FImageList.Width,
+        LRect.Top + (LRect.Height - LIconHeight) div 2 + LIconHeight
+      );
+      FImageList.Draw(Sender.Canvas, LIconRect.Left, LIconRect.Top, LEntity.ImageIndex);
+
+      LTextRect := Rect(
+        LIconRect.Right + FIconSpacing,
+        LRect.Top,
+        LRect.Right,
+        LRect.Bottom
+      );
+    end
+    else
+    begin
+      LTextRect := Rect(
+        LRect.Left + FIconSpacing,
+        LRect.Top,
+        LRect.Right,
+        LRect.Bottom
+      );
+    end;
+
+    DrawText(Handle, PChar(LEntity.DisplayName), -1, LTextRect, DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_END_ELLIPSIS);
+  end;
+end;
+
+procedure TAppLoader.LoadIconsAsync;
+begin
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      I: Integer;
+      LEntity: TDesktopEntity;
+      LSHFileInfo: TSHFileInfo;
+      LIcon: TIcon;
+      LCount: Integer;
+    begin
+      CoInitialize(nil);
+      try
+        LCount := FAllApps.Count;
+        for I := 0 to LCount - 1 do
+        begin
+          LEntity := FAllApps[I];
+          if LEntity.ImageIndex <> -1 then
+            Continue;
+
+          if LEntity.PIDL <> nil then
+          begin
+            FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
+            if SHGetFileInfo(PChar(LEntity.PIDL), 0, LSHFileInfo, SizeOf(LSHFileInfo),
+              SHGFI_PIDL or SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
+            begin
+              if LSHFileInfo.hIcon <> 0 then
+              begin
+                TThread.Synchronize(nil,
+                  procedure
+                  begin
+                    LIcon := TIcon.Create;
+                    try
+                      LIcon.Handle := LSHFileInfo.hIcon;
+                      LEntity.ImageIndex := FImageList.AddIcon(LIcon);
+                    finally
+                      LIcon.Free;
+                    end;
+                    FListView.Invalidate;
+                  end
+                );
+              end;
+            end;
+          end;
+        end;
+      finally
+        CoUninitialize;
+      end;
+    end
+  ).Start;
 end;
 
 procedure TAppLoader.SortApps(AList: TListDesktopEntities);
