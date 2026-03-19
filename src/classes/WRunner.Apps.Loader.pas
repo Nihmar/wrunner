@@ -155,12 +155,8 @@ begin
     OleCheck(LDesktopFolder.ParseDisplayName(0, nil, 'shell:appsfolder', LAttr, LAppsPIDL, LAttr));
   end;
 
-  try
-    OleCheck(SHGetDesktopFolder(LDesktopFolder));
-    OleCheck(LDesktopFolder.BindToObject(LAppsPIDL, nil, IShellFolder, Pointer(LShellFolder)));
-  finally
-    CoTaskMemFree(LAppsPIDL);
-  end;
+  OleCheck(SHGetDesktopFolder(LDesktopFolder));
+  OleCheck(LDesktopFolder.BindToObject(LAppsPIDL, nil, IShellFolder, Pointer(LShellFolder)));
 
   LTempList := TListDesktopEntities.Create;
   try
@@ -181,6 +177,8 @@ begin
   finally
     LTempList.OwnsObjects := False;
     LTempList.Free;
+    if LAppsPIDL <> nil then
+      CoTaskMemFree(LAppsPIDL);
   end;
 end;
 
@@ -196,9 +194,9 @@ var
   LDisplayName: string;
   LParsingName: string;
   LEntity: TDesktopEntity;
-  LIcon: TIcon;
-  LSHFileInfo: TSHFileInfo;
   LAbsPIDL: PItemIDList;
+  LSHFileInfo: TSHFileInfo;
+  LIcon: TIcon;
 begin
   LFlags := SHCONTF_FOLDERS or SHCONTF_NONFOLDERS;
   if Failed(AFolder.EnumObjects(0, LFlags, LEnumIDList)) then
@@ -227,13 +225,10 @@ begin
         Continue;
 
       LDisplayName := '';
-      if LStrRet.uType = STRRET_WSTR then
+      if (LStrRet.uType = STRRET_WSTR) and (LStrRet.pOleStr <> nil) then
       begin
-        if LStrRet.pOleStr <> nil then
-        begin
-          LDisplayName := LStrRet.pOleStr;
-          CoTaskMemFree(LStrRet.pOleStr);
-        end;
+        LDisplayName := LStrRet.pOleStr;
+        CoTaskMemFree(LStrRet.pOleStr);
       end;
 
       if LDisplayName = '' then
@@ -243,13 +238,10 @@ begin
       LStrRet.pOleStr := nil;
       AFolder.GetDisplayNameOf(LPID, SHGDN_FORPARSING, LStrRet);
       LParsingName := '';
-      if LStrRet.uType = STRRET_WSTR then
+      if (LStrRet.uType = STRRET_WSTR) and (LStrRet.pOleStr <> nil) then
       begin
-        if LStrRet.pOleStr <> nil then
-        begin
-          LParsingName := LStrRet.pOleStr;
-          CoTaskMemFree(LStrRet.pOleStr);
-        end;
+        LParsingName := LStrRet.pOleStr;
+        CoTaskMemFree(LStrRet.pOleStr);
       end;
 
       LEntity := TDesktopEntity.Create;
@@ -262,7 +254,7 @@ begin
         LAbsPIDL := ILCombine(AParentPIDL, LPID);
         FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
         if SHGetFileInfo(PChar(LAbsPIDL), 0, LSHFileInfo, SizeOf(LSHFileInfo),
-          SHGFI_PIDL or SHGFI_SYSICONINDEX or SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
+          SHGFI_PIDL or SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
         begin
           if LSHFileInfo.hIcon <> 0 then
           begin
@@ -272,6 +264,25 @@ begin
               LEntity.ImageIndex := FImageList.AddIcon(LIcon);
             finally
               LIcon.Free;
+            end;
+          end;
+        end;
+
+        if LEntity.ImageIndex = -1 then
+        begin
+          FillChar(LSHFileInfo, SizeOf(LSHFileInfo), 0);
+          if SHGetFileInfo(PChar(LParsingName), 0, LSHFileInfo, SizeOf(LSHFileInfo),
+            SHGFI_LARGEICON or SHGFI_ICON) <> 0 then
+          begin
+            if LSHFileInfo.hIcon <> 0 then
+            begin
+              LIcon := TIcon.Create;
+              try
+                LIcon.Handle := LSHFileInfo.hIcon;
+                LEntity.ImageIndex := FImageList.AddIcon(LIcon);
+              finally
+                LIcon.Free;
+              end;
             end;
           end;
         end;
