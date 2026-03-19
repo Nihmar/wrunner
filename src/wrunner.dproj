@@ -71,6 +71,7 @@
         <UWP_DelphiLogo44>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_44.png</UWP_DelphiLogo44>
         <UWP_DelphiLogo150>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_150.png</UWP_DelphiLogo150>
         <SanitizedProjectName>wrunner</SanitizedProjectName>
+        <Custom_Styles>Windows10|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10.vsf;&quot;Windows10 Dark|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10Dark.vsf&quot;;&quot;Windows11 Impressive Dark|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Impressive_Dark.vsf&quot;;&quot;Windows11 Impressive Dark SE|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Impressive_Dark_SE.vsf&quot;;&quot;Windows11 Impressive Light|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Impressive_Light.vsf&quot;;&quot;Windows11 Impressive Light SE|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Impressive_Light_SE.vsf&quot;;&quot;Windows11 MineShaft|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_MineShaft.vsf&quot;;&quot;Windows11 Modern Dark|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Modern_Dark.vsf&quot;;&quot;Windows11 Modern Light|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Modern_Light.vsf&quot;;&quot;Windows11 Polar Dark|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Polar_Dark.vsf&quot;;&quot;Windows11 Polar Light|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_Polar_Light.vsf&quot;;&quot;Windows11 White Smoke|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows11_WhiteSmoke.vsf&quot;</Custom_Styles>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_UsePackage>vclwinx;DataSnapServer;fmx;emshosting;vclie;DbxCommonDriver;bindengine;IndyIPCommon;VCLRESTComponents;DBXMSSQLDriver;FireDACCommonODBC;emsclient;FireDACCommonDriver;IndyProtocols;vclx;Skia.Package.RTL;IndyIPClient;dbxcds;vcledge;bindcompvclwinx;emsedge;bindcompfmx;DBXFirebirdDriver;inetdb;ibmonitor;FireDACSqliteDriver;DbxClientDriver;FireDACASADriver;soapmidas;vclactnband;fmxFireDAC;dbexpress;FireDACInfxDriver;DBXMySQLDriver;DBAwareLabeledComponents;VclSmp;inet;DataSnapCommon;Package11;fmxase;vcltouch;DBXOdbcDriver;dbrtl;FireDACDBXDriver;Skia.Package.FMX;FireDACOracleDriver;fmxdae;FireDACMSAccDriver;CustomIPTransport;FireDACMSSQLDriver;DataSnapIndy10ServerTransport;DataSnapConnectors;vcldsnap;DBXInterBaseDriver;FireDACMongoDBDriver;IndySystem;FireDACTDataDriver;Skia.Package.VCL;vcldb;ibxbindings;StyledComponents;vclFireDAC;office2K;bindcomp;FireDACCommon;DataSnapServerMidas;FireDACODBCDriver;emsserverresource;inetstn;IndyCore;RESTBackendComponents;bindcompdbx;rtl;FireDACMySQLDriver;FireDACADSDriver;StyledAnimatedComponents;RESTComponents;DBXSqliteDriver;vcl;IndyIPServer;dsnapxml;dsnapcon;DataSnapClient;DataSnapProviderClient;adortl;DBXSybaseASEDriver;DBXDb2Driver;vclimg;DataSnapFireDAC;emsclientfiredac;FireDACPgDriver;FireDAC;FireDACDSDriver;inetdbxpress;xmlrtl;tethering;ibxpress;bindcompvcl;dsnap;CloudService;DBXSybaseASADriver;DBXOracleDriver;FireDACDb2Driver;DBXInformixDriver;vclib;fmxobj;bindcompvclsmp;DataSnapNativeClient;DatasnapConnectorsFreePascal;soaprtl;soapserver;FireDACIBDriver;$(DCC_UsePackage)</DCC_UsePackage>
@@ -137,10 +138,16 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="forms\MainForm.pas">
-            <Form>Form1</Form>
+        <DCCReference Include="forms\Main.pas">
+            <Form>MainForm</Form>
+        </DCCReference>
+        <DCCReference Include="forms\WRunnerFrm.pas">
+            <Form>WRunnerForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="classes\WRunner.Apps.Entities.pas"/>
+        <DCCReference Include="classes\WRunner.Apps.Loader.pas"/>
+        <DCCReference Include="classes\WRunner.Results.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -167,6 +174,18 @@
                 </Excluded_Packages>
             </Delphi.Personality>
             <Deployment Version="5">
+                <DeployFile LocalName="..\bin\debug\64bit\wrunner.exe" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win64">
+                        <RemoteName>wrunner.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\bin\debug\64bit\wrunner.rsm" Configuration="Debug" Class="DebugSymbols">
+                    <Platform Name="Win64">
+                        <RemoteName>wrunner.rsm</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="Win32\Debug\wrunner.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>wrunner.exe</RemoteName>
